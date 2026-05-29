@@ -38,30 +38,26 @@ app.MapGet("/api/inventory", () =>
     return Results.Ok(LoadInventory());
 });
 
-app.MapPost("/api/inventory", (Product incoming, ILogger<Program> logger) =>
+app.MapPost("/api/inventory", (List<Product> incomingList, ILogger<Program> logger) =>
 {
-    // Logujemy przychodzące dane! Zajrzyj w zakładkę "Logs" na Renderze po wpisaniu czegoś w bocie.
-    logger.LogInformation($"Otrzymano z Voiceflow -> Name: '{incoming.Name}', Quantity: {incoming.Quantity}");
-
-    if (string.IsNullOrWhiteSpace(incoming.Name))
-    {
-        return Results.BadRequest(new { error = "Pole 'name' jest puste." });
-    }
-
     var inventory = LoadInventory();
 
-    // Używamy OrdinalIgnoreCase - jest wydajniejsze pamięciowo niż ToLower() i chroni przed nullami
-    var existing = inventory.FirstOrDefault(p => 
-        string.Equals(p.Name, incoming.Name, StringComparison.OrdinalIgnoreCase));
+    foreach (var incoming in incomingList)
+    {
+        if (string.IsNullOrWhiteSpace(incoming.Name)) continue;
 
-    if (existing != null)
-    {
-        existing.Quantity += incoming.Quantity;
-        if (existing.Quantity < 0) existing.Quantity = 0;
-    }
-    else if (incoming.Quantity > 0)
-    {
-        inventory.Add(incoming);
+        var existing = inventory.FirstOrDefault(p => 
+            string.Equals(p.Name, incoming.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            existing.Quantity += incoming.Quantity;
+            if (existing.Quantity < 0) existing.Quantity = 0;
+        }
+        else if (incoming.Quantity > 0)
+        {
+            inventory.Add(incoming);
+        }
     }
 
     SaveInventory(inventory);
