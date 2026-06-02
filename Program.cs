@@ -20,20 +20,22 @@ app.MapGet("/api/inventory", async () =>
     return Results.Ok(products);
 });
 
-app.MapPost("/api/inventory", async (Product incoming) =>
+app.MapPost("/api/inventory", async (System.Collections.Generic.List<Product> incoming) =>
 {
     await using var conn = new NpgsqlConnection(connectionString);
     await conn.OpenAsync();
-    await using var cmd = new NpgsqlCommand(@"
-        INSERT INTO inventory (name, quantity) 
-        VALUES (@name, @qty)
-        ON CONFLICT (name) 
-        DO UPDATE SET quantity = GREATEST(0, inventory.quantity + @qty)
-    ", conn);
-    cmd.Parameters.AddWithValue("name", incoming.Name);
-    cmd.Parameters.AddWithValue("qty", incoming.Quantity);
-    await cmd.ExecuteNonQueryAsync();
-
+    foreach (var item in incoming)
+    {
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO inventory (name, quantity) 
+            VALUES (@name, @qty)
+            ON CONFLICT (name) 
+            DO UPDATE SET quantity = GREATEST(0, inventory.quantity + @qty)
+        ", conn);
+        cmd.Parameters.AddWithValue("name", item.Name);
+        cmd.Parameters.AddWithValue("qty", item.Quantity);
+        await cmd.ExecuteNonQueryAsync();
+    }
     var products = new System.Collections.Generic.List<Product>();
     await using var cmd2 = new NpgsqlCommand("SELECT name, quantity FROM inventory", conn);
     await using var reader = await cmd2.ExecuteReaderAsync();
