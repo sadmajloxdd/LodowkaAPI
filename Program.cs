@@ -1,76 +1,48 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-var dataFile = "inventory.json"; // Zapisze prosto w katalogu roboczym (bezpieczniejsze w kontenerach)
+var connectionString = "Host=aws-1-eu-central-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.aiamnjqleyejujwrglxt;Password=janPawel2137!;SSL Mode=Require;Trust Server Certificate=true";
 
-// Ujednolicamy format JSON na camelCase, żeby idealnie współpracował z Voiceflow
-var jsonOptions = new JsonSerializerOptions 
-{ 
-    PropertyNameCaseInsensitive = true,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-};
-
-List<Product> LoadInventory()
+app.MapGet("/api/inventory", async () =>
 {
-    if (!File.Exists(dataFile)) return new List<Product>();
-    try
-    {
-        var json = File.ReadAllText(dataFile);
-        return JsonSerializer.Deserialize<List<Product>>(json, jsonOptions) ?? new List<Product>();
-    }
-    catch
-    {
-        return new List<Product>(); // Zabezpieczenie przed uszkodzonym plikiem
-    }
-}
-
-void SaveInventory(List<Product> inventory)
-{
-    var json = JsonSerializer.Serialize(inventory, jsonOptions);
-    File.WriteAllText(dataFile, json);
-}
-
-app.MapGet("/api/inventory", () =>
-{
-    return Results.Ok(LoadInventory());
+    var products = new List<Product>();
+    await using var conn = new NpgsqlConnection(connectionString);
+    await conn.OpenAsync();
+    await using var cmd = new NpgsqlCommand("SELECT name, quantity FROM inventory", conn);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        products.Add(new Product { Name = reader.GetString(0), Quantity = reader.GetInt32(1) });
+    return Results.Ok(products);
 });
 
-app.MapPost("/api/inventory", (List<Product> incomingList, ILogger<Program> logger) =>
+app.MapPost("/api/inventory", async (Product incoming) =>
 {
-    var inventory = LoadInventory();
+    await using var conn = new NpgsqlConnection(connectionString);
+    await conn.OpenAsync();
+    await using var cmd = new NpgsqlCommand(@"
+        INSERT INTO inventory (name, quantity) 
+        VALUES (@name, @qty)
+        ON CONFLICT (name) 
+        DO UPDATE SET quantity = GREATEST(0, inventory.quantity + @qty)
+    ", conn);
+    cmd.Parameters.AddWithValue("name", incoming.Name);
+    cmd.Parameters.AddWithValue("qty", incoming.Quantity);
+    await cmd.ExecuteNonQueryAsync();
 
-    foreach (var incoming in incomingList)
-    {
-        if (string.IsNullOrWhiteSpace(incoming.Name)) continue;
-
-        var existing = inventory.FirstOrDefault(p => 
-            string.Equals(p.Name, incoming.Name, StringComparison.OrdinalIgnoreCase));
-
-        if (existing != null)
-        {
-            existing.Quantity += incoming.Quantity;
-            if (existing.Quantity < 0) existing.Quantity = 0;
-        }
-        else if (incoming.Quantity > 0)
-        {
-            inventory.Add(incoming);
-        }
-    }
-
-    SaveInventory(inventory);
-    return Results.Ok(inventory);
+    var products = new List<Product>();
+    await using var cmd2 = new NpgsqlCommand("SELECT name, quantity FROM inventory", conn);
+    await using var reader = await cmd2.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        products.Add(new Product { Name = reader.GetString(0), Quantity = reader.GetInt32(1) });
+    return Results.Ok(products);
 });
 
 app.Run();
 
 public class Product
 {
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    [JsonPropertyName("quantity")]
+    public string Name { get; set; }
     public int Quantity { get; set; }
 }
