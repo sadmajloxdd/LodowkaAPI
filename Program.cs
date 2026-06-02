@@ -1,5 +1,7 @@
-using Npgsql;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -8,7 +10,7 @@ var connectionString = "Host=aws-1-eu-central-1.pooler.supabase.com;Port=6543;Da
 
 app.MapGet("/api/inventory", async () =>
 {
-    var products = new List<Product>();
+    var products = new System.Collections.Generic.List<Product>();
     await using var conn = new NpgsqlConnection(connectionString);
     await conn.OpenAsync();
     await using var cmd = new NpgsqlCommand("SELECT name, quantity FROM inventory", conn);
@@ -32,7 +34,7 @@ app.MapPost("/api/inventory", async (Product incoming) =>
     cmd.Parameters.AddWithValue("qty", incoming.Quantity);
     await cmd.ExecuteNonQueryAsync();
 
-    var products = new List<Product>();
+    var products = new System.Collections.Generic.List<Product>();
     await using var cmd2 = new NpgsqlCommand("SELECT name, quantity FROM inventory", conn);
     await using var reader = await cmd2.ExecuteReaderAsync();
     while (await reader.ReadAsync())
