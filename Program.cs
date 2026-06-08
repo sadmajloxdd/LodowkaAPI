@@ -26,12 +26,13 @@ app.MapPost("/api/inventory", async (System.Collections.Generic.List<Product> in
     await conn.OpenAsync();
     foreach (var item in incoming)
     {
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO inventory (name, quantity) 
-            VALUES (@name, @qty)
-            ON CONFLICT (name) 
-            DO UPDATE SET quantity = GREATEST(0, inventory.quantity + @qty)
-        ", conn);
+    await using var cmd = new NpgsqlCommand(@"
+        INSERT INTO inventory (name, quantity) 
+        VALUES (@name, @qty)
+        ON CONFLICT (name) 
+        DO UPDATE SET quantity = inventory.quantity + @qty;
+        DELETE FROM inventory WHERE quantity <= 0;
+    ", conn);
         cmd.Parameters.AddWithValue("name", item.Name);
         cmd.Parameters.AddWithValue("qty", item.Quantity);
         await cmd.ExecuteNonQueryAsync();
