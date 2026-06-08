@@ -6,7 +6,7 @@ using Npgsql;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-var connectionString = "Host=aws-1-eu-central-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.aiamnjqleyejujwrglxt;Password=janPawel2137!;SSL Mode=Require;Trust Server Certificate=true";
+var connectionString = "Host=aws-1-eu-central-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.aiamnjqleyejujwrglxt;Password=janPawel2137!;SSL Mode=Require;Trust Server Certificate=true";
 
 app.MapGet("/api/inventory", async () =>
 {
